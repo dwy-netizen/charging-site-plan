@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>研究方案设计 · 交互原型 v0.1（回顾性队列）</title>
+<style>
+  :root {
+    /* ====== 你改这里：设计 token（配色）====== */
+    --bg: #f6f7f9;                /* 页面暖白底 */
+    --panel: #ffffff;            /* 卡片/侧栏白 */
+    --panel-2: #f1f3f6;          /* hover/次级面板 */
+    --text: #1f2733;             /* 主文字深 */
+    --text-muted: #6b7280;       /* 次要文字 */
+    --red: #e11d48;              /* 致命防线/错误 */
+    --red-bg: rgba(225,29,72,0.08);
+    --orange: #d97706;           /* 警告 */
+    --orange-bg: rgba(217,119,6,0.10);
+    --blue: #2563eb;             /* 主操作/链接 */
+    --blue-bg: rgba(37,99,235,0.08);
+    --green: #16a34a;            /* 完成/通过 */
+    --green-bg: rgba(22,163,74,0.10);
+    --border: #e6e8ec;           /* 边框浅灰 */
+    --input-bg: #ffffff;         /* 输入底白 */
+    --shadow: 0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+    font-size: 14px;
+  }
+  .app { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px; background: var(--panel); border-right: 1px solid var(--border);
+    padding: 20px 0; position: fixed; height: 100vh; overflow-y: auto;
+  }
+  .sidebar-title { font-size: 13px; font-weight: 600; padding: 0 20px 12px; color: var(--text-muted); }
+  .nav-item {
+    padding: 10px 20px; cursor: pointer; font-size: 13px;
+    border-left: 3px solid transparent; transition: all .15s;
+  }
+  .nav-item:hover { background: var(--panel-2); }
+  .nav-item.active { background: var(--panel-2); border-left-color: var(--blue); color: var(--blue); }
+  .nav-item .step-num {
+    display: inline-flex; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--border); color: var(--text-muted); font-size: 11px;
+    align-items: center; justify-content: center; margin-right: 8px;
+  }
+  .nav-item.active .step-num { background: var(--blue); color: #fff; }
+  .nav-item.done .step-num { background: var(--green); color: #fff; }
+  .main { margin-left: 220px; flex: 1; padding: 32px 40px; max-width: 900px; }
+  .main h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .main .sub { color: var(--text-muted); font-size: 13px; margin-bottom: 24px; }
+  .step-panel { display: none; }
+  .step-panel.active { display: block; }
+
+  .field-group { margin-bottom: 20px; }
+  .field-label { font-size: 13px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .field-label .req { color: var(--red); }
+  .field-hint { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .field-input {
+    width: 100%; background: var(--input-bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 13px;
+    font-family: inherit; resize: vertical; min-height: 40px;
+  }
+  .field-input:focus { outline: none; border-color: var(--blue); }
+
+  .feedback-box {
+    border-radius: 6px; padding: 10px 14px; font-size: 12px; margin-top: 8px;
+    display: none;
+  }
+  .feedback-box.show { display: block; }
+  .feedback-box.red { background: var(--red-bg); border: 1px solid var(--red); color: #be123c; }
+  .feedback-box.orange { background: var(--orange-bg); border: 1px solid var(--orange); color: #b45309; }
+  .feedback-box.green { background: var(--green-bg); border: 1px solid var(--green); color: #15803d; }
+  .feedback-box .fb-title { font-weight: 600; margin-bottom: 2px; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; margin-bottom: 12px;
+  }
+  .card-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .risk-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
+  }
+  .risk-badge.high { background: var(--red-bg); color: var(--red); }
+  .risk-badge.medium { background: var(--orange-bg); color: var(--orange); }
+  .risk-badge.low { background: var(--green-bg); color: var(--green); }
+
+  .btn-row { display: flex; gap: 12px; margin-top: 24px; }
+  .btn {
+    padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer;
+    font-size: 13px; font-weight: 500; transition: all .15s;
+  }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-primary:hover { opacity: .9; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+  .btn-ghost:hover { border-color: var(--text-muted); }
+
+  .json-output {
+    background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; font-family: 'SF Mono', Consolas, monospace; font-size: 12px;
+    white-space: pre-wrap; word-break: break-all; color: #a3b8cc; line-height: 1.7;
+  }
+
+  .section-note {
+    background: var(--panel); border-left: 3px solid var(--orange); border-radius: 0 8px 8px 0;
+    padding: 10px 16px; font-size: 12px; color: var(--text-muted); margin-bottom: 20px;
+  }
+
+  /* 结构化方案预览 */
+  .proto-section { margin-bottom: 16px; }
+  .proto-h { font-size: 13px; font-weight: 600; color: var(--blue); margin-bottom: 6px; }
+  .proto-body { font-size: 13px; color: var(--text); }
+  .proto-empty { color: var(--text-muted); font-style: italic; }
+
+  /* AI配置面板 */
+  .api-bar {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 16px; margin-bottom: 20px; font-size: 12px;
+  }
+  .api-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .api-toggle input { width: 15px; height: 15px; accent-color: var(--blue); }
+  .api-status { font-weight: 600; color: var(--text-muted); }
+  .api-status.real { color: var(--green); }
+  .api-hint { color: var(--text-muted); }
+  .api-hint code { background: var(--input-bg); padding: 1px 6px; border-radius: 4px; color: #a3b8cc; }
+  .api-loading { color: var(--blue); }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 侧边导航 -->
+  <div class="sidebar">
+    <div class="sidebar-title">研究方案设计</div>
+    <div class="nav-item active" data-step="0"><span class="step-num">0</span>研究问题</div>
+    <div class="nav-item" data-step="1"><span class="step-num">P</span>研究对象</div>
+    <div class="nav-item" data-step="2"><span class="step-num">I</span>暴露因素</div>
+    <div class="nav-item" data-step="3"><span class="step-num">C</span>对照</div>
+    <div class="nav-item" data-step="4"><span class="step-num">O</span>结局指标</div>
+    <div class="nav-item" data-step="5"><span class="step-num">T</span>研究周期</div>
+    <div class="nav-item" data-step="6"><span class="step-num">±</span>入排标准</div>
+    <div class="nav-item" data-step="7"><span class="step-num">⚠</span>偏倚评估</div>
+    <div class="nav-item" data-step="8"><span class="step-num">Σ</span>统计方案</div>
+    <div class="nav-item" data-step="9"><span class="step-num">{}</span>方案输出</div>
+  </div>
+
+  <!-- 主区 -->
+  <div class="main">
+    <h1>研究方案设计 · 交互原型 v0.1</h1>
+    <p class="sub">回顾性队列研究 · AI辅助（规则模板版，可接DeepSeek）· 数据与渲染分离，API-ready</p>
+
+    <!-- ========== AI配置面板 ========== -->
+    <div class="api-bar">
+      <label class="api-toggle">
+        <input type="checkbox" id="ai_real"> 使用真实AI（DeepSeek / 本地代理）
+      </label>
+      <span id="ai_status" class="api-status">当前：模拟模式（规则模板）</span>
+      <span class="api-hint">真实模式需先运行 <code>python proxy.py</code> 并配置 DEEPSEEK_API_KEY</span>
+    </div>
+
+    <!-- ========== Step 0: 研究问题 + 类型判断 ========== -->
+    <div class="step-panel active" data-panel="0">
+      <div class="section-note">
+        🔴 致命防线1（类型判断）：研究类型决定后续PICOS全部逻辑，选错=后续全错。MVP仅实现回顾性队列，故系统基于研究问题<strong>推荐类型并展示理由</strong>（而非静默锁定）；未来扩展其他类型时，此处变为可选项。
+      </div>
+      <div class="field-group">
+        <div class="field-label">研究问题 <span class="req">*</span></div>
+        <div class="field-hint">用一句话描述你想研究的关系，例如："我想研究糖尿病患者的XX药物暴露是否与肾功能下降风险相关"</div>
+        <textarea class="field-input" id="research_question" placeholder="我想研究[人群]的[暴露因素]是否与[结局指标]相关"></textarea>
+        <div class="feedback-box red" id="fb_question"></div>
+      </div>
+      <div class="card" id="type_card" style="display:none">
+        <div class="card-title">🔍 AI推荐研究类型</div>
+        <div id="type_reco" class="proto-body"></div>
+        <div class="field-hint" style="margin-top:8px">
+          当前原型仅支持<strong>回顾性队列研究</strong>。其他类型（病例对照/横断面/RCT）为后续扩展，上线后将在此处变为可选项。
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Step 1: P 研究对象 ========== -->
+    <div class="step-panel" data-panel="1">
+      <div class="section-note">
+        🔴 致命防线2（P可行性）：回顾性研究的数据已有，P必须包含数据来源——数据源能否支撑研究问题，决定了研究能不能做。
+      </div>
+      <div class="field-group">
+        <div class="field-label">疾病定义 <span class="req">*</span></div>
+        <div class="field-hint">用什么诊断标准？ICD编码 / 临床诊断 / 病理确认？</div>
+        <textarea class="field-input" id="p_disease" placeholder="如：2型糖尿病（ICD-10: E11），诊断基于空腹血糖≥7.0mmol/L或HbA1c≥6.5%"></textarea>
+        <div class="feedback-box red" id="fb_p_disease"></div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">数据来源 <span class="req">*</span></div>
+        <div class="field-hint">从哪个医院/哪个系统（HIS/EMR/LIS）筛选？是否包含随访数据？</div>
+        <textarea class="field-input" id="p_source" placeholder="如：我院2018-2023年HIS系统住院病历，含出院诊断、检验数据；随访数据来自门诊复诊记录"></textarea>
+        <div class="feedback-box red" id="fb_p_source"></div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">时间范围 <span class="req">*</span></div>
+        <div class="field-hint">数据覆盖哪段时间？</div>
+        <input class="field-input" id="p_time" placeholder="如：2018年1月-2023年12月"></textarea>
+        <div class="feedback-box red" id="fb_p_time"></div>
+      </div>
+    </div>
+
+    <!-- ========== Step 2: I 暴露因素 ========== -->
+    <div class="step-panel" data-panel="2">
+      <div class="section-note">
+        ⚠️ 回顾性研究不施加干预，是观察<strong>已有暴露</strong>。术语用"暴露因素"而非"干预措施"。暴露定义模糊=分类错误=信息偏倚。
+      </div>
+      <div class="field-group">
+        <div class="field-label">暴露因素定义 <span class="req">*</span></div>
+        <div class="field-hint">你关注的暴露是什么？如何定义"暴露"？（用药≥X天？剂量≥X？）</div>
+        <textarea class="field-input" id="i_def" placeholder="如：XX药物暴露定义为连续使用≥28天，剂量≥X mg/日"></textarea>
+        <div class="feedback-box red" id="fb_i_def"></div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">暴露提取方式 <span class="req">*</span></div>
+        <div class="field-hint">从病历中如何提取暴露信息？靠医嘱记录？处方？护士记录？</div>
+        <textarea class="field-input" id="i_extract" placeholder="如：从HIS系统医嘱记录中提取，筛选药物名称+用药时长+剂量"></textarea>
+        <div class="feedback-box red" id="fb_i_extract"></div>
+      </div>
+    </div>
+
+    <!-- ========== Step 3: C 对照 ========== -->
+    <div class="step-panel" data-panel="3">
+      <div class="section-note">
+        🔴 致命防线3（C可比性）：对照的核心原则是可比性，不是"凑数"。对照不可比=结果不可信。AI交叉校验P和C的来源是否一致。
+      </div>
+      <div class="field-group">
+        <div class="field-label">对照来源 <span class="req">*</span></div>
+        <div class="field-hint">对照是谁？来自同一人群吗？（同期同科室未暴露患者？还是不同来源？）</div>
+        <textarea class="field-input" id="c_source" placeholder="如：同期同科室未使用XX药物的糖尿病患者，来自相同HIS数据源"></textarea>
+        <div class="feedback-box red" id="fb_c_source"></div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">可比性说明 <span class="req">*</span></div>
+        <div class="field-hint">如何保障病例组和对照组可比？是否需要按年龄/性别/病程匹配？</div>
+        <textarea class="field-input" id="c_comp" placeholder="如：按1:1倾向性评分匹配，匹配变量包括年龄、性别、糖尿病病程、基线eGFR"></textarea>
+        <div class="feedback-box orange" id="fb_c_comp"></div>
+      </div>
+
+      <!-- ========== P可行性 AI检查（结构化字段评估 · 致命防线2） ========== -->
+      <div class="card" style="margin-top:16px;border-left:3px solid var(--blue)">
+        <div class="card-title">🔍 AI方案可行性检查（致命防线2 · P可行性）</div>
+        <div class="field-hint" style="margin-bottom:10px">填结构化字段，AI交叉校验方案能不能落地（数据源/样本量/时间/干预/伦理/资源）。开启"真实AI模式"走 /api/check_p（6检查点完整评估），否则走基础启发式。</div>
+        <div class="field-group">
+          <div class="field-label">研究问题 research_question（可选）</div>
+          <div class="field-hint">一句话描述你想研究的关系；AI 据此核对「研究问题类型」与「研究设计」是否匹配（如横断面设计答因果问题=不匹配→warn）。</div>
+          <textarea class="field-input" id="pf_research_question" placeholder="如：我想研究[人群]的[暴露]是否与[结局]相关 / 留空"></textarea>
+        </div>
+        <div class="field-group">
+          <div class="field-label">研究设计类型</div>
+          <select class="field-input" id="pf_design">
+            <option value="retrospective_cohort">回顾性队列</option>
+            <option value="prospective_cohort">前瞻性队列</option>
+            <option value="case_control">病例对照</option>
+            <option value="cross_sectional">横断面</option>
+            <option value="rct">随机对照(RCT)</option>
+            <option value="case_cohort">病例队列</option>
+            <option value="nested_case_control">巢式病例对照</option>
+            <option value="its">中断时间序列(ITS)</option>
+            <option value="self_control">自身前后对照</option>
+            <option value="other">其他/单臂</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <div class="field-label">数据源 data_source <span class="req">*</span></div>
+          <input class="field-input" id="pf_data_source" placeholder="如：某院2015-2023电子病历库 / 3家医院前瞻性招募 / MIMIC-III公开库"></input>
+        </div>
+        <div class="field-group">
+          <div class="field-label">目标样本量 sample_size</div>
+          <input class="field-input" id="pf_sample_size" placeholder="如：1200 / 留空"></input>
+        </div>
+        <div class="field-group">
+          <div class="field-label">研究周期/随访期 study_duration</div>
+          <input class="field-input" id="pf_study_duration" placeholder="如：随访5年 / 留空"></input>
+        </div>
+        <div class="field-group">
+          <div class="field-label">样本量估算 power_analysis（可选）</div>
+          <input class="field-input" id="pf_power" placeholder="如：基于效应量OR=1.8功率0.9 / 留空"></input>
+        </div>
+        <div class="field-group">
+          <div class="field-label">干预/暴露 intervention（可选）</div>
+          <input class="field-input" id="pf_intervention" placeholder="如：已上市降压药 / 留空"></input>
+        </div>
+        <div class="field-group">
+          <div class="field-label">测量指标 measurement（可选）</div>
+          <input class="field-input" id="pf_measurement" placeholder="如：血生化（平台可及）/ 留空"></input>
+        </div>
+        <div class="field-group">
+          <div class="field-label">伦理/注册 ethics（可选）</div>
+          <input class="field-input" id="pf_ethics" placeholder="如：已通过伦理审查并注册 / 留空"></input>
+        </div>
+        <div class="field-group">
+          <div class="field-label">资源 resources（可选）</div>
+          <input class="field-input" id="pf_resources" placeholder="如：多中心但无经费说明 / 留空"></input>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="checkFeasibility()">检查方案可行性</button>
+        </div>
+        <div id="pf_result" style="margin-top:12px"></div>
+      </div>
+
+      <!-- ========== C可比性 AI检查（结构化字段评估） ========== -->
+      <div class="card" style="margin-top:16px;border-left:3px solid var(--blue)">
+        <div class="card-title">🔍 AI对照可比性检查（致命防线3 · C可比性）</div>
+        <div class="field-hint" style="margin-bottom:10px">填结构化字段，AI交叉校验暴露组/对照组是否可比。覆盖：对照存在性、同期性、随机化、混杂控制、基线、适应症混杂、失访。开启"真实AI模式"走 /api/check_c（7检查点完整评估），否则走基础启发式。</div>
+        <div class="field-group">
+          <div class="field-label">研究设计类型</div>
+          <select class="field-input" id="cp_design">
+            <option value="retrospective_cohort">回顾性队列</option>
+            <option value="prospective_cohort">前瞻性队列</option>
+            <option value="case_control">病例对照</option>
+            <option value="cross_sectional">横断面</option>
+            <option value="rct">随机对照(RCT)</option>
+            <option value="case_cohort">病例队列</option>
+            <option value="nested_case_control">巢式病例对照</option>
+            <option value="its">中断时间序列(ITS)</option>
+            <option value="self_control">自身前后对照</option>
+            <option value="other">其他/单臂</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <div class="field-label">是否有对照</div>
+          <select class="field-input" id="cp_has_control">
+            <option value="true">有对照</option>
+            <option value="false">无对照/单臂</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <div class="field-label">对照类型</div>
+          <select class="field-input" id="cp_control_type">
+            <option value="同期对照">同期对照</option>
+            <option value="历史对照">历史对照</option>
+            <option value="外部对照">外部对照</option>
+            <option value="自身前后对照">自身前后对照</option>
+            <option value="不适用">不适用</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <div class="field-label">随机化描述 randomization（RCT可选）</div>
+          <input class="field-input" id="cp_randomization" placeholder="如：随机+分配隐藏+双盲"></input>
+        </div>
+        <div class="field-group">
+          <div class="field-label">匹配 matching（可选）</div>
+          <input class="field-input" id="cp_matching" placeholder="如：按年龄性别1:1匹配"></input>
+        </div>
+        <div class="field-group">
+          <div class="field-label">分层/调整 stratify_adjust（含PS，可选）</div>
+          <input class="field-input" id="cp_stratify" placeholder="如：多变量调整 / 倾向评分PS"></input>
+        </div>
+        <div class="field-group">
+          <div class="field-label">基线均衡性 baseline_balance（可选，留空=未报告）</div>
+          <input class="field-input" id="cp_baseline" placeholder="如：两组基线均衡 / 肾损程度不同 / 留空"></input>
+        </div>
+        <div class="field-group">
+          <div class="field-label">分组定义 group_def（是否受预后因素影响，可选）</div>
+          <input class="field-input" id="cp_group_def" placeholder="如：重症才用新药"></input>
+        </div>
+        <div class="field-group">
+          <div class="field-label">随访完整度 followup_complete（可选，留空=未报告）</div>
+          <input class="field-input" id="cp_followup" placeholder="如：失访25% / 留空"></input>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="checkComparability()">检查对照可比性</button>
+        </div>
+        <div id="cp_result" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- ========== Step 4: O 结局指标 ========== -->
+    <div class="step-panel" data-panel="4">
+      <div class="section-note">
+        ⚠️ 结局的测量方式决定可靠性。主观指标+回顾性提取=双重信息偏倚风险。一个研究只回答一个核心问题。
+      </div>
+      <div class="field-group">
+        <div class="field-label">主要结局 <span class="req">*</span></div>
+        <div class="field-hint">核心回答的问题。客观（死亡/复发/实验室指标）优于主观（症状评分）。</div>
+        <textarea class="field-input" id="o_primary" placeholder="如：eGFR较基线下降≥30%（客观，实验室指标）"></textarea>
+        <div class="feedback-box red" id="fb_o_primary"></div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">次要结局</div>
+        <div class="field-hint">可选。补充性指标。</div>
+        <textarea class="field-input" id="o_secondary" placeholder="如：终末期肾病发生率、全因死亡率"></textarea>
+      </div>
+      <div class="field-group">
+        <div class="field-label">测量方式 <span class="req">*</span></div>
+        <div class="field-hint">结局从什么数据中提取？随访记录？检验系统？出院诊断？</div>
+        <textarea class="field-input" id="o_measure" placeholder="如：从LIS系统提取血清肌酐计算eGFR，随访记录提取肾病进展事件"></textarea>
+        <div class="feedback-box orange" id="fb_o_measure"></div>
+      </div>
+    </div>
+
+    <!-- ========== Step 5: T 研究周期 ========== -->
+    <div class="step-panel" data-panel="5">
+      <div class="section-note">
+        ⚠️ 回顾性的"周期"是数据覆盖的时间范围，不是随访时间。随访太短=结局没发生完=失访偏倚。
+      </div>
+      <div class="field-group">
+        <div class="field-label">数据覆盖时间段 <span class="req">*</span></div>
+        <div class="field-hint">回顾性数据从哪年哪月到哪年哪月？随访期多长？</div>
+        <input class="field-input" id="t_coverage" placeholder="如：入组2018-2023年，中位随访3.5年"></textarea>
+        <div class="feedback-box red" id="fb_t_coverage"></div>
+      </div>
+    </div>
+
+    <!-- ========== Step 6: 入排标准 ========== -->
+    <div class="step-panel" data-panel="6">
+      <div class="section-note">
+        入排标准基于P自动生成框架，你可增删改。⚠️ 排除过多→样本量不足；排除过少→混杂偏倚。AI校验排除标准对样本量的影响。
+      </div>
+      <div class="card">
+        <div class="card-title">🔧 自动生成框架（基于P）</div>
+        <div id="ie_autogen" class="proto-body proto-empty">填写P（研究对象）后自动生成...</div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">纳入标准（可编辑）</div>
+        <textarea class="field-input" id="ie_inclusion" style="min-height:80px"></textarea>
+      </div>
+      <div class="field-group">
+        <div class="field-label">排除标准（可编辑）</div>
+        <textarea class="field-input" id="ie_exclusion" style="min-height:80px"></textarea>
+        <div class="feedback-box orange" id="fb_ie"></div>
+      </div>
+    </div>
+
+    <!-- ========== Step 7: 偏倚评估 ========== -->
+    <div class="step-panel" data-panel="7">
+      <div class="section-note">
+        偏倚评估：交叉校验PICO之间的逻辑一致性。⚠️ 清单为v2.1版，<strong>待临床验证</strong>，已知遗漏：永恒时间偏倚(immortal time bias)。
+      </div>
+      <div id="bias_list"></div>
+    </div>
+
+    <!-- ========== Step 8: 统计方案 ========== -->
+    <div class="step-panel" data-panel="8">
+      <div class="section-note">
+        统计方案必须<strong>先于数据分析</strong>写进方案（回顾性P-hacking风险极高）。基于PICOS推荐方法+理由（规则模板版）。
+      </div>
+      <div class="card">
+        <div class="card-title">📊 AI推荐统计方案（规则模板）</div>
+        <div id="stat_reco" class="proto-body proto-empty">填写PICOS后自动推荐...</div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">样本量估算思路</div>
+        <div class="field-hint">回顾性研究通常不预先估算样本量（数据已有），但需说明样本量是否充足。</div>
+        <textarea class="field-input" id="stat_sample" placeholder="如：基于现有数据N=XXXX例，预期暴露组XXXX例/对照组XXXX例，满足Cox回归所需事件数"></textarea>
+      </div>
+      <div class="field-group">
+        <div class="field-label">分析策略</div>
+        <textarea class="field-input" id="stat_analysis" placeholder="如：单因素Cox回归筛选变量→多因素Cox回归校正混杂→敏感性分析"></textarea>
+      </div>
+    </div>
+
+    <!-- ========== Step 9: 方案输出 ========== -->
+    <div class="step-panel" data-panel="9">
+      <div class="section-note">
+        输出结构化研究方案。JSON格式固定，下游模块（数据处理/论文撰写/伦理提交）可统一读取。
+      </div>
+      <div class="proto-section">
+        <div class="proto-h">📄 结构化方案预览</div>
+        <div id="proto_preview" class="proto-body proto-empty">尚未生成，请完成前面步骤...</div>
+      </div>
+      <div class="proto-section">
+        <div class="proto-h">{} JSON 数据（可导出）</div>
+        <div id="json_output" class="json-output proto-empty">{}</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="generateOutput()">生成方案</button>
+        <button class="btn btn-ghost" onclick="copyJSON()">复制JSON</button>
+      </div>
+    </div>
+
+    <!-- 导航按钮 -->
+    <div class="btn-row" id="nav_btns">
+      <button class="btn btn-ghost" id="btn_prev" onclick="navPrev()">← 上一步</button>
+      <button class="btn btn-primary" id="btn_next" onclick="navNext()">下一步 →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   ====== 数据层（与渲染分离，API-ready） ======
+   真实API接入时：将 validateXxx / recommendStat 等函数
+   替换为 fetch('/api/...') 调用即可，渲染逻辑不变。
+   ============================================================ */
+const appConfig = {
+  useReal: false,
+  baseURL: 'http://localhost:8787'   // 本地Python代理地址，key 在代理侧，不暴露给前端
+};
+
+const protocolData = {
+  research_question: "",
+  study_type: "retrospective_cohort",
+  study_type_name: "回顾性队列研究",
+  pico: {
+    P: { disease_def: "", data_source: "", time_range: "" },
+    I: { exposure_def: "", extraction_method: "" },
+    C: { control_source: "", comparability: "" },
+    O: { primary: "", secondary: "", measurement: "", extraction_channel: "" },
+    S: "回顾性队列研究",
+    T: { data_coverage: "" }
+  },
+  inclusion_exclusion: { inclusion: "", exclusion: "" },
+  bias_assessment: {},
+  statistical_plan: { method: "", sample_size: "", analysis_strategy: "" }
+};
+
+/* ============================================================
+   ====== 渲染层 ======
+   ============================================================ */
+let currentStep = 0;
+const TOTAL_STEPS = 9;
+
+// 导航
+function navTo(step) {
+  currentStep = Math.max(0, Math.min(TOTAL_STEPS, step));
+  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.step-panel[data-panel="${currentStep}"]`).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.remove('active');
+    const ns = parseInt(n.dataset.step);
+    if (ns < currentStep) n.classList.add('done');
+  });
+  document.querySelector(`.nav-item[data-step="${currentStep}"]`).classList.add('active');
+  // 按钮状态
+  document.getElementById('btn_prev').style.visibility = currentStep === 0 ? 'hidden' : 'visible';
+  document.getElementById('btn_next').style.visibility = currentStep === TOTAL_STEPS ? 'hidden' : 'visible';
+  // 进入特定step时触发动态生成
+  if (currentStep === 6) autoGenInclusion();
+  if (currentStep === 7) renderBiasList();
+  if (currentStep === 8) recommendStat();
+}
+function navNext() { navTo(currentStep + 1); }
+function navPrev() { navTo(currentStep - 1); }
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => navTo(parseInt(item.dataset.step)));
+});
+
+// 反馈框工具
+function showFeedback(id, level, title, msg) {
+  const box = document.getElementById(id);
+  box.className = `feedback-box show ${level}`;
+  box.innerHTML = `<div class="fb-title">${title}</div>${msg || ''}`;
+}
+function clearFeedback(id) {
+  const box = document.getElementById(id);
+  box.className = 'feedback-box';
+  box.innerHTML = '';
+}
+
+/* ============================================================
+   ====== 规则校验层（MVP: 规则模板检查，非语义理解） ======
+   TODO(API): 以下函数均为确定性规则，Phase 2替换为RAG语义校验
+   ============================================================ */
+
+// Step 0: 研究问题 + 类型判断（AI推荐，MVP仅回顾性队列）
+document.getElementById('research_question').addEventListener('input', async e => {
+  const v = e.target.value;
+  protocolData.research_question = v;
+  if (!v.trim()) {
+    showFeedback('fb_question', 'red', '必填', '请描述你的研究问题，这是方案的起点。');
+    document.getElementById('type_card').style.display = 'none';
+    return;
+  }
+  clearFeedback('fb_question');
+  renderTypeCard(await judgeStudyType(v));   // 真实模式走API，否则走规则版
+});
+
+// AI配置面板交互
+document.getElementById('ai_real').addEventListener('change', e => {
+  appConfig.useReal = e.target.checked;
+  const el = document.getElementById('ai_status');
+  el.textContent = appConfig.useReal ? '当前：真实AI模式（DeepSeek）' : '当前：模拟模式（规则模板）';
+  el.classList.toggle('real', appConfig.useReal);
+});
+
+// 🔴 防线1: 类型判断——统一入口（真实走API，失败/未开启则降级规则版）
+async function judgeStudyType(q) {
+  if (!appConfig.useReal) return mockStudyType(q);
+  try {
+    const resp = await fetch(appConfig.baseURL + '/api/study_type', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    data.mock_fallback = false;
+    return data;
+  } catch (err) {
+    console.warn('真实AI调用失败，降级到规则版：', err);
+    const m = mockStudyType(q);
+    m.mock_fallback = true;
+    return m;
+  }
+}
+
+// 渲染类型推荐卡片
+function renderTypeCard(reco) {
+  document.getElementById('type_card').style.display = 'block';
+  const badge = '<span class="risk-badge low">推荐</span>';
+  const fallback = reco.mock_fallback
+    ? '<br/><span class="api-loading" style="color:var(--orange)">⚠️ 真实AI调用失败，已降级为规则版</span>'
+    : '';
+  // 🔴 已知局限提示：类型判断准确率约95%，失分多为"过度自信"而非方向判错；
+  // 当AI基于有限信息用"默认"假设推断时，嗅探 reason 弹不确定性提示（见 KNOWN_LIMITATIONS.md）
+  const uncertainty = /默认/.test(reco.reason || '')
+    ? '<div class="feedback-box orange show" style="margin-top:10px"><div class="fb-title">⚠️ AI不确定性提示</div>类型判断基于有限信息推断，含"默认"假设。当前准确率约95%，失分多为"过度自信"而非方向判错，请人工复核分组逻辑。</div>'
+    : '';
+  document.getElementById('type_reco').innerHTML =
+    `<strong>${reco.type_name}</strong> ${badge}<br/>` +
+    `<strong>判断理由：</strong>${reco.reason}<br/>` +
+    `<strong>分组逻辑：</strong>${reco.group_logic}` + fallback + uncertainty;
+  protocolData.study_type = reco.type_id;
+  protocolData.study_type_name = reco.type_name;
+}
+
+// 基于研究问题的关键词推断分组逻辑（规则版兜底，与代理端mock一致）
+function mockStudyType(q) {
+  const hasExposure = /暴露|因素|风险|用药|药物|干预|治疗|吸烟|饮食/.test(q);
+  const hasOutcome  = /结局|预后|死亡|复发|进展|发生率|风险比|生存率/.test(q);
+  // 回顾性队列：按暴露分组 → 追结局
+  let reason = '你的研究关注某一暴露/因素与某一结局的关联，逻辑是"先有暴露、后观测结局"，符合回顾性队列（按暴露分组 → 追踪结局）的特征。';
+  let group_logic = '按暴露因素分组 → 追踪结局发生';
+  // 若问题更像"从结局反推暴露"（病例对照特征），给出提示但仍说明当前限制
+  if (hasOutcome && !hasExposure) {
+    reason = '你的研究从结局出发反推暴露史，逻辑更接近<strong>病例对照</strong>（按结局分组 → 看暴露）。但当前MVP仅支持回顾性队列，请确认你的实际分组逻辑：若确实是按暴露分组追踪结局，则适用本工具；若为按结局反推暴露，请等待病例对照类型上线。';
+  }
+  return { type_id: 'retrospective_cohort', type_name: '回顾性队列研究', reason, group_logic };
+}
+
+// Step 1: P
+function bindP() {
+  const map = [
+    ['p_disease', 'pico.P.disease_def', 'fb_p_disease', '疾病定义'],
+    ['p_source', 'pico.P.data_source', 'fb_p_source', '数据来源'],
+    ['p_time', 'pico.P.time_range', 'fb_p_time', '时间范围']
+  ];
+  map.forEach(([elId, path, fbId, label]) => {
+    document.getElementById(elId).addEventListener('input', e => {
+      const v = e.target.value;
+      setPath(path, v);
+      if (!v.trim()) {
+        showFeedback(fbId, 'red', '必填', `${label}不能为空。回顾性研究的数据已有，必须明确数据来源和时间范围。`);
+      } else {
+        clearFeedback(fbId);
+        // 🔴 防线2: 数据源可行性（规则版）
+        if (elId === 'p_source') {
+          if (!/随访|复诊|门诊/.test(v) && /随访/.test(protocolData.pico.O.measurement || '')) {
+            showFeedback(fbId, 'orange', '⚠️ 潜在偏倚', '你的结局需要从随访记录提取，但P的数据来源未提及随访数据。请确认数据源是否包含随访记录。');
+          }
+        }
+      }
+    });
+  });
+}
+
+// Step 2: I
+function bindI() {
+  const map = [
+    ['i_def', 'pico.I.exposure_def', 'fb_i_def', '暴露因素定义'],
+    ['i_extract', 'pico.I.extraction_method', 'fb_i_extract', '暴露提取方式']
+  ];
+  map.forEach(([elId, path, fbId, label]) => {
+    document.getElementById(elId).addEventListener('input', e => {
+      const v = e.target.value;
+      setPath(path, v);
+      if (!v.trim()) showFeedback(fbId, 'red', '必填', `${label}不能为空。`);
+      else clearFeedback(fbId);
+    });
+  });
+}
+
+// Step 3: C
+function bindC() {
+  document.getElementById('c_source').addEventListener('input', e => {
+    const v = e.target.value;
+    protocolData.pico.C.control_source = v;
+    // 🔴 防线3: 对照可比性（规则版）
+    if (!v.trim()) {
+      showFeedback('fb_c_source', 'red', '必填', '对照来源不能为空。对照不可比=结果不可信。');
+    } else {
+      clearFeedback('fb_c_source');
+      const pSrc = protocolData.pico.P.data_source || '';
+      // 简单规则：如果P和C来源描述差异大（不含相同关键词），标橙
+      if (pSrc && !hasCommonKeyword(pSrc, v)) {
+        showFeedback('fb_c_source', 'orange', '⚠️ 选择偏倚风险', '病例组与对照组来源描述不一致，可能存在选择偏倚。建议对照组也从相同数据源/科室选取。');
+      }
+    }
+  });
+  document.getElementById('c_comp').addEventListener('input', e => {
+    const v = e.target.value;
+    protocolData.pico.C.comparability = v;
+    if (!v.trim()) {
+      showFeedback('fb_c_comp', 'orange', '建议填写', '未说明可比性保障措施。回顾性队列中，混杂偏倚是核心风险，建议说明匹配或校正策略。');
+    } else {
+      clearFeedback('fb_c_comp');
+    }
+  });
+}
+
+// Step 4: O
+function bindO() {
+  document.getElementById('o_primary').addEventListener('input', e => {
+    const v = e.target.value;
+    protocolData.pico.O.primary = v;
+    if (!v.trim()) showFeedback('fb_o_primary', 'red', '必填', '主要结局不能为空。');
+    else clearFeedback('fb_o_primary');
+  });
+  document.getElementById('o_secondary').addEventListener('input', e => {
+    protocolData.pico.O.secondary = e.target.value;
+  });
+  document.getElementById('o_measure').addEventListener('input', e => {
+    const v = e.target.value;
+    protocolData.pico.O.measurement = v;
+    protocolData.pico.O.extraction_channel = v;
+    if (!v.trim()) {
+      showFeedback('fb_o_measure', 'orange', '建议填写', '未说明测量方式。结局的测量方式决定可靠性。');
+    } else {
+      clearFeedback('fb_o_measure');
+      // 主观指标风险
+      if (/评分|主观|问卷|自我报告/.test(v)) {
+        showFeedback('fb_o_measure', 'orange', '⚠️ 信息偏倚风险', '结局含主观测量，回顾性提取可能引入信息偏倚。建议补充客观指标或说明质控措施。');
+      }
+      // 交叉校验P数据源
+      if (/随访/.test(v) && !/随访|复诊|门诊/.test(protocolData.pico.P.data_source || '')) {
+        showFeedback('fb_o_measure', 'orange', '⚠️ 数据源不匹配', '结局需随访数据，但P的数据来源未提及随访记录。');
+      }
+    }
+  });
+}
+
+// Step 5: T
+function bindT() {
+  document.getElementById('t_coverage').addEventListener('input', e => {
+    const v = e.target.value;
+    protocolData.pico.T.data_coverage = v;
+    if (!v.trim()) showFeedback('fb_t_coverage', 'red', '必填', '数据覆盖时间段不能为空。');
+    else clearFeedback('fb_t_coverage');
+  });
+}
+
+// 工具函数
+function setPath(path, value) {
+  const parts = path.split('.');
+  let obj = protocolData;
+  for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
+  obj[parts[parts.length - 1]] = value;
+}
+function hasCommonKeyword(a, b) {
+  const kw = ['科室', '医院', 'HIS', '系统', '数据源', '同'];
+  return kw.some(k => a.includes(k) && b.includes(k));
+}
+
+// Step 6: 入排标准自动生成
+function autoGenInclusion() {
+  const p = protocolData.pico.P;
+  const el = document.getElementById('ie_autogen');
+  if (!p.disease_def && !p.data_source) {
+    el.className = 'proto-body proto-empty';
+    el.textContent = '填写P（研究对象）后自动生成...';
+    return;
+  }
+  el.className = 'proto-body';
+  el.innerHTML = `
+    <strong>建议纳入标准：</strong><br/>
+    • 符合疾病定义：${p.disease_def || '（待填）'}<br/>
+    • 数据来源：${p.data_source || '（待填）'}<br/>
+    • 时间范围：${p.time_range || '（待填）'}<br/>
+    <strong>建议排除标准：</strong><br/>
+    • 关键变量缺失（无法判定暴露或结局）<br/>
+    • 诊断不明确<br/>
+    • 合并严重基础疾病影响结局解释
+  `;
+  // 同步到可编辑框（如果为空）
+  if (!document.getElementById('ie_inclusion').value) {
+    document.getElementById('ie_inclusion').value = `• 符合上述疾病定义\n• 数据来源于${p.data_source || '指定数据源'}\n• 在研究时间范围内`;
+  }
+  if (!document.getElementById('ie_exclusion').value) {
+    document.getElementById('ie_exclusion').value = `• 关键变量（暴露/结局）缺失\n• 诊断不明确\n• 合并严重基础疾病影响结局解释`;
+  }
+  protocolData.inclusion_exclusion.inclusion = document.getElementById('ie_inclusion').value;
+  protocolData.inclusion_exclusion.exclusion = document.getElementById('ie_exclusion').value;
+
+  // 排除过多风险（规则版）
+  const exclLines = document.getElementById('ie_exclusion').value.split('\n').filter(l => l.trim());
+  if (exclLines.length > 5) {
+    showFeedback('fb_ie', 'orange', '⚠️ 样本量风险', `排除标准${exclLines.length}条偏多，可能损失样本量。回顾性研究排除标准应少而精，只排除严重影响暴露/结局判断的情况。`);
+  } else {
+    clearFeedback('fb_ie');
+  }
+}
+document.getElementById('ie_inclusion').addEventListener('input', e => protocolData.inclusion_exclusion.inclusion = e.target.value);
+document.getElementById('ie_exclusion').addEventListener('input', e => {
+  protocolData.inclusion_exclusion.exclusion = e.target.value;
+  const lines = e.target.value.split('\n').filter(l => l.trim());
+  if (lines.length > 5) showFeedback('fb_ie', 'orange', '⚠️ 样本量风险', `排除标准${lines.length}条偏多，可能损失样本量。`);
+  else clearFeedback('fb_ie');
+});
+
+// Step 7: 偏倚评估渲染
+const BIAS_ITEMS = [
+  { id: 'selection', name: '选择偏倚', severity: 'high', check: '比较P和C的来源是否一致' },
+  { id: 'information', name: '信息偏倚', severity: 'medium', check: 'I和O的测量是否可靠、是否统一' },
+  { id: 'confounding', name: '混杂偏倚', severity: 'high', check: '是否有未控制的混杂因素' },
+  { id: 'lost_to_followup', name: '失访偏倚', severity: 'medium', check: '随访时间是否足够、失访率是否可控' }
+  // ⚠️ 待验证：遗漏"永恒时间偏倚(immortal time bias)"，需临床专家补充
+];
+function renderBiasList() {
+  const wrap = document.getElementById('bias_list');
+  wrap.innerHTML = '';
+  BIAS_ITEMS.forEach(item => {
+    // 自动风险评级（规则版）
+    let autoRisk = item.severity;
+    let autoNote = '';
+    if (item.id === 'selection') {
+      const pSrc = protocolData.pico.P.data_source || '';
+      const cSrc = protocolData.pico.C.control_source || '';
+      if (pSrc && cSrc && !hasCommonKeyword(pSrc, cSrc)) { autoRisk = 'high'; autoNote = '（检测到P/C来源不一致）'; }
+      else if (!cSrc) { autoRisk = 'high'; autoNote = '（未填对照来源）'; }
+      else { autoRisk = 'low'; autoNote = '（P/C来源一致）'; }
+    }
+    if (item.id === 'information') {
+      if (/主观|评分|问卷/.test(protocolData.pico.O.measurement || '')) { autoRisk = 'high'; autoNote = '（结局含主观测量）'; }
+    }
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-title">${item.name}
+        <span class="risk-badge ${autoRisk}">${autoRisk === 'high' ? '高风险' : autoRisk === 'medium' ? '中风险' : '低风险'}${autoNote}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">校验逻辑：${item.check}</div>
+      <textarea class="field-input" data-bias="${item.id}" placeholder="填写防控措施（如：按年龄性别匹配 / 使用盲法评估 / 多因素校正）" style="min-height:50px">${protocolData.bias_assessment[item.id] || ''}</textarea>
+    `;
+    wrap.appendChild(card);
+    card.querySelector('textarea').addEventListener('input', e => protocolData.bias_assessment[item.id] = e.target.value);
+  });
+}
+
+// Step 8: 统计方案推荐（规则模板）
+function recommendStat() {
+  const o = protocolData.pico.O;
+  const el = document.getElementById('stat_reco');
+  if (!o.primary) {
+    el.className = 'proto-body proto-empty';
+    el.textContent = '填写O（结局指标）后自动推荐...';
+    return;
+  }
+  // 规则：根据结局描述推测变量类型 → 推荐方法
+  let method = '描述性统计 + 组间比较';
+  let reason = '';
+  if (/率|发生|风险|HR|死亡|复发/.test(o.primary)) {
+    method = 'Cox比例风险回归（估计HR）';
+    reason = '结局为二分类时间事件（如肾病进展/死亡），回顾性队列推荐生存分析。';
+  } else if (/连续|eGFR|评分|水平|值/.test(o.primary)) {
+    method = '独立样本t检验 / Mann-Whitney U（组间比较）+ 线性回归（校正混杂）';
+    reason = '结局为连续变量，两组比较用t检验（非正态用U检验），多因素用线性回归。';
+  } else if (/是否|有无|阳性|阴性/.test(o.primary)) {
+    method = '卡方检验 + Logistic回归（估计OR）';
+    reason = '结局为二分类变量，组间比较用卡方，多因素用Logistic回归。';
+  }
+  el.className = 'proto-body';
+  el.innerHTML = `
+    <strong>推荐方法：</strong>${method}<br/>
+    <strong>理由：</strong>${reason}<br/>
+    <strong>关联指标：</strong>回顾性队列输出相对风险度(RR)或风险比(HR)。
+  `;
+  protocolData.statistical_plan.method = method;
+  protocolData.statistical_plan.reason = reason;
+}
+document.getElementById('stat_sample').addEventListener('input', e => protocolData.statistical_plan.sample_size = e.target.value);
+document.getElementById('stat_analysis').addEventListener('input', e => protocolData.statistical_plan.analysis_strategy = e.target.value);
+
+// Step 9: 输出
+function generateOutput() {
+  const d = protocolData;
+  // 预览
+  const preview = document.getElementById('proto_preview');
+  preview.className = 'proto-body';
+  preview.innerHTML = `
+    <div class="proto-section"><div class="proto-h">研究问题</div>${d.research_question || '（未填）'}</div>
+    <div class="proto-section"><div class="proto-h">研究设计</div>${d.study_type_name}</div>
+    <div class="proto-section"><div class="proto-h">P 研究对象</div>
+      疾病：${d.pico.P.disease_def || '—'}<br/>数据源：${d.pico.P.data_source || '—'}<br/>时间：${d.pico.P.time_range || '—'}</div>
+    <div class="proto-section"><div class="proto-h">I 暴露因素</div>
+      ${d.pico.I.exposure_def || '—'}<br/>提取：${d.pico.I.extraction_method || '—'}</div>
+    <div class="proto-section"><div class="proto-h">C 对照</div>
+      ${d.pico.C.control_source || '—'}<br/>可比性：${d.pico.C.comparability || '—'}</div>
+    <div class="proto-section"><div class="proto-h">O 结局指标</div>
+      主要：${d.pico.O.primary || '—'}<br/>次要：${d.pico.O.secondary || '—'}<br/>测量：${d.pico.O.measurement || '—'}</div>
+    <div class="proto-section"><div class="proto-h">T 研究周期</div>${d.pico.T.data_coverage || '—'}</div>
+    <div class="proto-section"><div class="proto-h">入排标准</div>
+      纳入：${d.inclusion_exclusion.inclusion || '—'}<br/>排除：${d.inclusion_exclusion.exclusion || '—'}</div>
+    <div class="proto-section"><div class="proto-h">偏倚评估</div>
+      ${Object.entries(d.bias_assessment).map(([k,v]) => `${k}: ${v || '（未填）'}`).join('<br/>') || '—'}</div>
+    <div class="proto-section"><div class="proto-h">统计方案</div>
+      ${d.statistical_plan.method || '—'}<br/>${d.statistical_plan.analysis_strategy || '—'}</div>
+  `;
+  // JSON
+  const jsonEl = document.getElementById('json_output');
+  jsonEl.className = 'json-output';
+  jsonEl.textContent = JSON.stringify(d, null, 2);
+}
+function copyJSON() {
+  const txt = document.getElementById('json_output').textContent;
+  navigator.clipboard.writeText(txt).then(() => alert('JSON已复制到剪贴板'));
+}
+
+// 初始化绑定
+bindP(); bindI(); bindC(); bindO(); bindT();
+navTo(0);
+
+/* ============================================================
+   ====== 致命防线3: C可比性检查（结构化字段 → /api/check_c） ======
+   数据/渲染分离，API-ready：
+   - 真实模式：fetch /api/check_c（proxy 端7检查点完整评估，双100%验证）
+   - 模拟模式：mockComparability 基础启发式兜底（仅演示，非完整评估）
+   ============================================================ */
+async function checkComparability() {
+  const fields = {};
+  const map = [
+    ['cp_design','design_type'], ['cp_has_control','has_control'], ['cp_control_type','control_type'],
+    ['cp_randomization','randomization'], ['cp_matching','matching'], ['cp_stratify','stratify_adjust'],
+    ['cp_baseline','baseline_balance'], ['cp_group_def','group_def'], ['cp_followup','followup_complete']
+  ];
+  map.forEach(([elId, key]) => {
+    let v = document.getElementById(elId).value.trim();
+    if (elId === 'cp_has_control') v = (v === 'true');   // 布尔值特殊处理
+    if (v === '') v = null;   // 留空=未报告(null)，对应后端 unknown 逻辑
+    fields[key] = v;
+  });
+  const box = document.getElementById('cp_result');
+  box.innerHTML = '<div class="api-loading">⏳ 正在评估对照可比性...</div>';
+  const res = await judgeComparability(fields);
+  renderComparability(res, box);
+}
+
+// 统一入口：真实走API，失败/未开启则降级mock
+async function judgeComparability(fields) {
+  if (!appConfig.useReal) return mockComparability(fields);
+  try {
+    const resp = await fetch(appConfig.baseURL + '/api/check_c', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    data.mock_fallback = false;
+    return data;
+  } catch (err) {
+    console.warn('C可比性API失败，降级mock：', err);
+    const m = mockComparability(fields);
+    m.mock_fallback = true;
+    return m;
+  }
+}
+
+// 渲染C可比性结果（headline + 可比性/风险徽章 + 检查点列表 + 风险点 + 建议）
+function renderComparability(res, box) {
+  const cmap = { comparable:['可比','low'], needs_caution:['需谨慎','medium'], not_comparable:['不可比','high'] };
+  const [ctext, clevel] = cmap[res.comparability] || ['未知','medium'];
+  const fallback = res.mock_fallback
+    ? '<div class="api-loading" style="color:var(--orange);margin-top:6px">⚠️ 模拟模式（未连真实AI），仅基础启发式，非完整7检查点评估</div>'
+    : '';
+  let html = `<div class="card" style="border-left:3px solid var(--${clevel})">
+      <div class="card-title">${res.headline || '评估完成'}
+        <span class="risk-badge ${clevel}">${ctext}</span>
+        <span class="risk-badge ${clevel}">风险:${res.risk_level}</span>
+      </div>`;
+  if (res.checkpoints && res.checkpoints.length) {
+    html += '<div style="font-size:12px;margin:8px 0">';
+    res.checkpoints.forEach(cp => {
+      const s = cp.status;
+      const sc = s === 'fail' ? 'high' : s === 'warn' ? 'medium' : (s === 'pass' ? 'low' : '');
+      html += `<div style="margin:3px 0">• <strong>${cp.item}</strong>: <span class="risk-badge ${sc}">${s}</span> ${cp.detail || ''}</div>`;
+    });
+    html += '</div>';
+  }
+  if (res.risk_points && res.risk_points.length) {
+    html += `<div style="font-size:12px;margin-top:6px;color:#ffd699"><strong>风险点：</strong>${res.risk_points.join('；')}</div>`;
+  }
+  if (res.suggestions && res.suggestions.length) {
+    html += `<div style="font-size:12px;margin-top:6px;color:var(--text-muted)"><strong>改进建议：</strong>${res.suggestions.join('；')}</div>`;
+  }
+  html += fallback + '</div>';
+  box.innerHTML = html;
+}
+
+/* ============================================================
+   ====== 致命防线2: P可行性检查（结构化字段 → /api/check_p） ======
+   数据/渲染分离，API-ready：
+   - 真实模式：fetch /api/check_p（proxy 端6检查点完整评估）
+   - 模拟模式：mockFeasibility 基础启发式兜底（仅演示，非完整评估）
+   ============================================================ */
+async function checkFeasibility() {
+  const fields = {};
+  const map = [
+    ['pf_research_question','research_question'], ['pf_design','design_type'], ['pf_data_source','data_source'], ['pf_sample_size','sample_size'],
+    ['pf_study_duration','study_duration'], ['pf_power','power_analysis'], ['pf_intervention','intervention'],
+    ['pf_measurement','measurement'], ['pf_ethics','ethics'], ['pf_resources','resources']
+  ];
+  map.forEach(([elId, key]) => {
+    let v = document.getElementById(elId).value.trim();
+    if (elId === 'pf_sample_size') {
+      v = v === '' ? null : (isNaN(Number(v)) ? v : Number(v));
+    } else if (v === '') {
+      v = null;
+    }
+    fields[key] = v;
+  });
+  const box = document.getElementById('pf_result');
+  box.innerHTML = '<div class="api-loading">⏳ 正在评估方案可行性...</div>';
+  const res = await judgeFeasibility(fields);
+  renderFeasibility(res, box);
+}
+
+async function judgeFeasibility(fields) {
+  if (!appConfig.useReal) return mockFeasibility(fields);
+  try {
+    const resp = await fetch(appConfig.baseURL + '/api/check_p', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    data.mock_fallback = false;
+    return data;
+  } catch (err) {
+    console.warn('P可行性API失败，降级mock：', err);
+    const m = mockFeasibility(fields);
+    m.mock_fallback = true;
+    return m;
+  }
+}
+
+function renderFeasibility(res, box) {
+  const fmap = { feasible:['可行','low'], needs_revision:['需修订','medium'], not_feasible:['不可行','high'] };
+  const [ftext, flevel] = fmap[res.feasibility] || ['未知','medium'];
+  const fallback = res.mock_fallback
+    ? '<div class="api-loading" style="color:var(--orange);margin-top:6px">⚠️ 模拟模式（未连真实AI），仅基础启发式，非完整6检查点评估</div>'
+    : '';
+  let html = `<div class="card" style="border-left:3px solid var(--${flevel})">
+      <div class="card-title">${res.headline || '评估完成'}
+        <span class="risk-badge ${flevel}">${ftext}</span>
+        <span class="risk-badge ${flevel}">风险:${res.risk_level}</span>
+      </div>`;
+  if (res.checkpoints && res.checkpoints.length) {
+    html += '<div style="font-size:12px;margin:8px 0">';
+    res.checkpoints.forEach(cp => {
+      const s = cp.status;
+      const sc = s === 'fail' ? 'high' : s === 'warn' ? 'medium' : (s === 'pass' ? 'low' : '');
+      html += `<div style="margin:3px 0">• <strong>${cp.item}</strong>: <span class="risk-badge ${sc}">${s}</span> ${cp.detail || ''}</div>`;
+    });
+    html += '</div>';
+  }
+  if (res.risk_points && res.risk_points.length) {
+    html += `<div style="font-size:12px;margin-top:6px;color:var(--orange)"><strong>风险点：</strong>${res.risk_points.join('；')}</div>`;
+  }
+  if (res.suggestions && res.suggestions.length) {
+    html += `<div style="font-size:12px;margin-top:6px;color:var(--text-muted)"><strong>改进建议：</strong>${res.suggestions.join('；')}</div>`;
+  }
+  html += fallback + '</div>';
+  box.innerHTML = html;
+}
+
+function mockFeasibility(f) {
+  const ds = f.data_source || '';
+  if (!ds) return { feasibility:'needs_revision', risk_level:'medium', headline:'未说明数据源，方案可行性存疑', risk_points:['缺数据源'], suggestions:['补充数据源说明'] };
+  // 检查点1：研究问题类型 vs 设计类型匹配（横断面答因果=不匹配）
+  if (f.design_type === 'cross_sectional' && /导致|引起|因果|影响.*风险|cause|effect/.test(f.research_question || '')) {
+    return { feasibility:'needs_revision', risk_level:'medium', headline:'横断面设计无法回答因果问题', risk_points:['研究问题与设计类型不匹配'], suggestions:['改回顾性队列/RCT，或把问题改为关联描述'] };
+  }
+  if (/未上市|不存在|量子/.test(f.intervention || '')) return { feasibility:'not_feasible', risk_level:'high', headline:'干预不可操作，方案落不了地', risk_points:['干预不可得'], suggestions:['更换可及干预'] };
+  if (/安慰剂/.test(f.intervention || '') && /危重/.test(f.ethics || f.measurement || '')) return { feasibility:'not_feasible', risk_level:'high', headline:'安慰剂对照危重病，伦理硬伤', risk_points:['伦理硬伤'], suggestions:['改活性对照'] };
+  if (/20年/.test(f.study_duration || '') && /5年/.test(ds)) return { feasibility:'not_feasible', risk_level:'high', headline:'随访期超出数据源时段', risk_points:['时间窗矛盾'], suggestions:['缩短随访或换数据源'] };
+  if (!f.power_analysis) return { feasibility:'needs_revision', risk_level:'medium', headline:'未做样本量估算，建议补充', risk_points:['缺功效分析'], suggestions:['补样本量估算'] };
+  return { feasibility:'feasible', risk_level:'low', headline:'数据源明确、核心要素齐全，方案可行', risk_points:[], suggestions:[] };
+}
+
+// C可比性 mock（基础启发式，仅兜底演示，非完整评估）
+function mockComparability(f) {
+  const hasC = f.has_control === true || f.has_control === 'true';
+  if (!hasC) return { comparability:'not_comparable', risk_level:'high', headline:'无对照/单臂设计，对照不可比', risk_points:['无对照组'], suggestions:['增设同期对照'] };
+  if (f.control_type === '历史对照' && !/倾向|PS|评分/.test(f.stratify_adjust || '')) return { comparability:'not_comparable', risk_level:'high', headline:'历史对照（非同期），结果不可信', risk_points:['非同期对照','时间偏倚'], suggestions:['改用同期对照或做PS匹配'] };
+  if (f.matching || f.stratify_adjust) return { comparability:'comparable', risk_level:'low', headline:'有匹配/调整措施，对照可比', risk_points:[], suggestions:[] };
+  return { comparability:'needs_caution', risk_level:'medium', headline:'有同期对照但未说明混杂控制措施，需谨慎', risk_points:['未明确混杂控制机制'], suggestions:['说明匹配或分层调整策略'] };
+}
+</script>
+</body>
+</html>
